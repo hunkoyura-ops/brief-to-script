@@ -300,6 +300,27 @@
   .loading-dot:nth-child(2){animation-delay:.15s;}
   .loading-dot:nth-child(3){animation-delay:.3s;}
   @keyframes pulse{0%,100%{opacity:.3;} 50%{opacity:1;}}
+
+  /* batch */
+  .batch-item{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 12px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    margin-bottom:6px;
+    cursor:pointer;
+    font-size:12.5px;
+  }
+  .batch-item:hover{border-color:var(--teal);}
+  .batch-item.selected{border-color:var(--coral); background:var(--coral-dim);}
+  .batch-item-num{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px; color:var(--text-dim);
+    flex:0 0 18px;
+  }
+  .batch-item-label{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .batch-item-src{font-size:10px; flex:0 0 auto;}
 </style>
 </head>
 <body>
@@ -346,8 +367,21 @@
       <label>Key message / offer</label>
       <textarea id="message" placeholder="e.g. Falls-asleep-faster claim, first order 20% off with code, natural ingredients"></textarea>
 
-      <label>Creator persona / tone</label>
-      <textarea id="persona" placeholder="e.g. Chaotic gen-z humor, fast cuts, self-deprecating, films in her bedroom, hates ad reads that sound scripted"></textarea>
+      <label>Mode</label>
+      <div class="pillgroup" id="modePills">
+        <div class="pill active" data-val="single">Single</div>
+        <div class="pill" data-val="batch">Batch</div>
+      </div>
+
+      <div id="singlePersonaBlock">
+        <label>Creator persona / tone</label>
+        <textarea id="persona" placeholder="e.g. Chaotic gen-z humor, fast cuts, self-deprecating, films in her bedroom, hates ad reads that sound scripted"></textarea>
+      </div>
+
+      <div id="batchPersonaBlock" style="display:none;">
+        <label>Creator personas — one per line <span id="batchCount" style="color:var(--teal);"></span></label>
+        <textarea id="batchPersonas" style="min-height:120px;" placeholder="Chaotic gen-z humor, self-deprecating&#10;Calm expert tone, tech reviewer&#10;Sarcastic contrarian, blunt&#10;(up to 8 creators per batch)"></textarea>
+      </div>
 
       <label>CTA style</label>
       <div class="row2">
@@ -372,6 +406,16 @@
     <!-- RIGHT: PREVIEW -->
     <div class="panel">
       <div class="panel-title">Script Timeline <span id="sourceBadge" style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-dim);text-transform:none;letter-spacing:0;"></span></div>
+
+      <div id="batchResultsBlock" style="display:none;margin-bottom:18px;">
+        <div class="meta-label">Batch results — click to preview</div>
+        <div id="batchList"></div>
+        <div class="actions" style="margin-top:10px;">
+          <button class="btn-ghost" id="saveAllBtn">Save all to library</button>
+          <button class="btn-ghost" id="downloadAllBtn">Download all as .doc</button>
+        </div>
+      </div>
+
       <div class="preview-shell">
         <div class="phone">
           <div class="phone-scrubber"><div class="phone-scrubber-fill" id="phoneScrubberFill"></div></div>
@@ -425,6 +469,39 @@ document.querySelectorAll('#lenPills .pill').forEach(p=>{
     length = p.dataset.val;
   };
 });
+
+let mode = 'single';
+document.querySelectorAll('#modePills .pill').forEach(p=>{
+  p.onclick = ()=>{
+    document.querySelectorAll('#modePills .pill').forEach(x=>x.classList.remove('active'));
+    p.classList.add('active');
+    mode = p.dataset.val;
+    document.getElementById('singlePersonaBlock').style.display = mode==='single' ? 'block' : 'none';
+    document.getElementById('batchPersonaBlock').style.display = mode==='batch' ? 'block' : 'none';
+    updateGenerateLabel();
+  };
+});
+
+function getBatchPersonas(){
+  return document.getElementById('batchPersonas').value
+    .split('\n').map(s=>s.trim()).filter(Boolean).slice(0,8);
+}
+
+document.getElementById('batchPersonas').addEventListener('input', () => {
+  const n = getBatchPersonas().length;
+  document.getElementById('batchCount').textContent = n ? `(${n} creator${n>1?'s':''})` : '';
+  updateGenerateLabel();
+});
+
+function updateGenerateLabel(){
+  if(genBtn.disabled) return;
+  if(mode === 'batch'){
+    const n = getBatchPersonas().length;
+    genBtn.textContent = n ? `Generate ${n} script${n>1?'s':''}` : 'Generate scripts';
+  } else {
+    genBtn.textContent = 'Generate script';
+  }
+}
 
 /* ---------- local storage wrapper (standalone deployment — no window.storage here) ---------- */
 
@@ -726,10 +803,17 @@ function generateLocalScript({brand, message, persona, ctaStyle, ctaDetail, plat
   return { beats, caption, hashtags };
 }
 
+let batchResults = [];
+let selectedBatchIdx = -1;
+
+function shortLabel(persona){
+  const words = persona.split(/\s+/).slice(0,4).join(' ');
+  return words.length < persona.length ? words + '…' : words;
+}
+
 genBtn.onclick = async () => {
   const brand = document.getElementById('brand').value.trim();
   const message = document.getElementById('message').value.trim();
-  const persona = document.getElementById('persona').value.trim();
   const ctaStyle = document.getElementById('cta').value;
   const ctaDetail = document.getElementById('ctaDetail').value.trim();
 
@@ -738,7 +822,48 @@ genBtn.onclick = async () => {
     errorMsg.textContent = 'Add at least a brand name and key message.';
     return;
   }
+
+  if(mode === 'batch'){
+    const personas = getBatchPersonas();
+    if(personas.length === 0){
+      errorMsg.style.display='block';
+      errorMsg.textContent = 'Add at least one creator persona (one per line).';
+      return;
+    }
+    errorMsg.style.display='none';
+    genBtn.disabled = true;
+    batchResults = [];
+    selectedBatchIdx = -1;
+
+    for(let i = 0; i < personas.length; i++){
+      genBtn.textContent = `Drafting ${i+1}/${personas.length}...`;
+      const params = {brand, message, persona: personas[i], ctaStyle, ctaDetail, platform, length};
+      let draft, source;
+      try{
+        draft = await generateWithAI(params);
+        source = 'ai';
+      }catch(err){
+        console.warn(`Batch item ${i+1} AI failed, using offline draft:`, err.message);
+        draft = generateLocalScript(params);
+        source = 'offline';
+      }
+      batchResults.push({
+        brand, platform, length, persona: personas[i], message, ...draft,
+        createdAt: Date.now() + i, source
+      });
+    }
+
+    renderBatchList();
+    if(batchResults.length){ selectBatchItem(0); }
+    genBtn.disabled = false;
+    updateGenerateLabel();
+    return;
+  }
+
+  // single mode
+  const persona = document.getElementById('persona').value.trim();
   errorMsg.style.display='none';
+  document.getElementById('batchResultsBlock').style.display = 'none';
 
   const params = {brand, message, persona, ctaStyle, ctaDetail, platform, length};
   genBtn.disabled = true;
@@ -761,7 +886,63 @@ genBtn.onclick = async () => {
   currentScript = { brand, platform, length, persona, message, ...draft, createdAt: Date.now(), source };
   renderScript(currentScript);
   genBtn.disabled = false;
-  genBtn.textContent = 'Generate script';
+  updateGenerateLabel();
+};
+
+function renderBatchList(){
+  const block = document.getElementById('batchResultsBlock');
+  const list = document.getElementById('batchList');
+  block.style.display = batchResults.length ? 'block' : 'none';
+  list.innerHTML = '';
+  batchResults.forEach((r, i) => {
+    const div = document.createElement('div');
+    div.className = 'batch-item' + (i===selectedBatchIdx ? ' selected' : '');
+    div.innerHTML = `
+      <span class="batch-item-num">${i+1}</span>
+      <span class="batch-item-label">${escapeHtml(shortLabel(r.persona))}</span>
+      <span class="batch-item-src">${r.source==='ai' ? '✦' : '○'}</span>
+    `;
+    div.onclick = () => selectBatchItem(i);
+    list.appendChild(div);
+  });
+}
+
+function selectBatchItem(i){
+  selectedBatchIdx = i;
+  currentScript = batchResults[i];
+  renderScript(currentScript);
+  renderBatchList();
+}
+
+document.getElementById('saveAllBtn').onclick = async () => {
+  if(!batchResults.length) return;
+  const btn = document.getElementById('saveAllBtn');
+  for(const r of batchResults){
+    await storage.set(`script:${r.createdAt}`, JSON.stringify(r));
+  }
+  loadLibrary();
+  const original = btn.textContent;
+  btn.textContent = `Saved ${batchResults.length}!`;
+  setTimeout(()=>btn.textContent = original, 1500);
+};
+
+document.getElementById('downloadAllBtn').onclick = () => {
+  if(!batchResults.length) return;
+  const sections = batchResults.map((r,i) => `
+    <div style="${i>0 ? 'page-break-before:always;' : ''}">
+      <p style="color:#999;font-size:10pt;">Creator ${i+1} of ${batchResults.length}: ${escapeHtml(r.persona)}</p>
+      ${scriptToDocHtml(r).match(/<body[^>]*>([\s\S]*)<\/body>/)[1]}
+    </div>`).join('<hr style="margin:24px 0;border:none;border-top:1px solid #ccc;">');
+  const html = `<html><head><meta charset="utf-8"><title>${escapeHtml(batchResults[0].brand)} — batch scripts</title></head><body style="font-family:Calibri,Arial,sans-serif;font-size:12pt;">${sections}</body></html>`;
+  const blob = new Blob([html], {type:'application/msword'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${safeFilename(batchResults[0].brand)}-batch-${batchResults.length}-creators.doc`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
 };
 
 function renderScript(script){
