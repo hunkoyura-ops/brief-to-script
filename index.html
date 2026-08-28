@@ -404,10 +404,10 @@
 
       <label>Platform</label>
       <div class="pillgroup" id="platformPills">
-        <div class="pill active" data-val="TikTok">TikTok</div>
+        <div class="pill active" data-val="Stories">Stories</div>
+        <div class="pill" data-val="TikTok">TikTok</div>
         <div class="pill" data-val="Instagram Reels">Reels</div>
         <div class="pill" data-val="YouTube Shorts">Shorts</div>
-        <div class="pill" data-val="Twitch integration">Twitch</div>
       </div>
 
       <label>Video length</label>
@@ -424,6 +424,7 @@
       <div class="pillgroup" id="modePills">
         <div class="pill active" data-val="single">Single</div>
         <div class="pill" data-val="batch">Batch</div>
+        <div class="pill" data-val="preset">Preset</div>
       </div>
 
       <div id="singlePersonaBlock">
@@ -434,6 +435,22 @@
       <div id="batchPersonaBlock" style="display:none;">
         <label>Creator personas — one per line <span id="batchCount" style="color:var(--teal);"></span></label>
         <textarea id="batchPersonas" style="min-height:120px;" placeholder="Chaotic gen-z humor, self-deprecating&#10;Calm expert tone, tech reviewer&#10;Sarcastic contrarian, blunt&#10;(up to 8 creators per batch)"></textarea>
+      </div>
+
+      <div id="presetBlock" style="display:none;">
+        <label>Creator preset</label>
+        <select id="presetSelect"></select>
+        <div id="presetPreview" style="margin-top:8px;font-size:12px;color:var(--text-dim);font-style:italic;line-height:1.4;"></div>
+        <button class="btn-ghost" id="managePresetsBtn" style="margin-top:10px;">Manage presets</button>
+
+        <div id="presetManage" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
+          <label style="margin-top:0;">Creator name</label>
+          <input type="text" id="presetName" placeholder="e.g. Nastya K.">
+          <label>Style / persona</label>
+          <textarea id="presetStyle" placeholder="e.g. Deadpan humor, slow pacing, films outdoors, hates hard-sell CTAs"></textarea>
+          <button class="btn-ghost" id="addPresetBtn" style="margin-top:10px;width:100%;">Add preset</button>
+          <div id="presetList" style="margin-top:14px;"></div>
+        </div>
       </div>
 
       <label>CTA style</label>
@@ -504,7 +521,7 @@
 </div>
 
 <script>
-let platform = 'TikTok';
+let platform = 'Stories';
 let length = '30';
 let currentScript = null;
 
@@ -531,6 +548,7 @@ document.querySelectorAll('#modePills .pill').forEach(p=>{
     mode = p.dataset.val;
     document.getElementById('singlePersonaBlock').style.display = mode==='single' ? 'block' : 'none';
     document.getElementById('batchPersonaBlock').style.display = mode==='batch' ? 'block' : 'none';
+    document.getElementById('presetBlock').style.display = mode==='preset' ? 'block' : 'none';
     updateGenerateLabel();
   };
 });
@@ -567,6 +585,102 @@ const storage = {
     return {keys};
   }
 };
+
+/* ---------- creator presets ---------- */
+
+function loadPresets(){
+  try{
+    const raw = localStorage.getItem('creator_presets');
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  const seed = [
+    {id:'seed1', name:'Example — Chaotic Gen-Z', style:'Chaotic gen-z humor, fast cuts, self-deprecating, films in her bedroom, hates ad reads that sound scripted'},
+    {id:'seed2', name:'Example — Calm Expert', style:'Calm, confident, tech-reviewer tone. Explains things clearly, no hype, shows the product in use before talking about it'}
+  ];
+  localStorage.setItem('creator_presets', JSON.stringify(seed));
+  return seed;
+}
+
+function savePresets(list){
+  localStorage.setItem('creator_presets', JSON.stringify(list));
+}
+
+let presets = loadPresets();
+
+function renderPresetSelect(){
+  const sel = document.getElementById('presetSelect');
+  sel.innerHTML = '';
+  if(presets.length === 0){
+    const opt = document.createElement('option');
+    opt.textContent = 'No presets yet — add one below';
+    opt.value = '';
+    sel.appendChild(opt);
+    document.getElementById('presetPreview').textContent = '';
+    return;
+  }
+  presets.forEach(p=>{
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    sel.appendChild(opt);
+  });
+  updatePresetPreview();
+}
+
+function updatePresetPreview(){
+  const sel = document.getElementById('presetSelect');
+  const p = presets.find(x=>x.id===sel.value);
+  document.getElementById('presetPreview').textContent = p ? p.style : '';
+}
+
+document.getElementById('presetSelect').addEventListener('change', updatePresetPreview);
+
+document.getElementById('managePresetsBtn').onclick = () => {
+  const panel = document.getElementById('presetManage');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if(panel.style.display === 'block') renderPresetList();
+};
+
+document.getElementById('addPresetBtn').onclick = () => {
+  const name = document.getElementById('presetName').value.trim();
+  const style = document.getElementById('presetStyle').value.trim();
+  if(!name || !style) return;
+  presets.push({id:'p'+Date.now(), name, style});
+  savePresets(presets);
+  document.getElementById('presetName').value = '';
+  document.getElementById('presetStyle').value = '';
+  renderPresetSelect();
+  renderPresetList();
+};
+
+function renderPresetList(){
+  const list = document.getElementById('presetList');
+  list.innerHTML = '';
+  if(presets.length === 0){
+    list.innerHTML = '<div class="lib-empty">No presets yet.</div>';
+    return;
+  }
+  presets.forEach(p=>{
+    const div = document.createElement('div');
+    div.className = 'lib-item';
+    div.innerHTML = `
+      <div>
+        ${escapeHtml(p.name)}
+        <small>${escapeHtml(p.style.slice(0,60))}${p.style.length>60?'…':''}</small>
+      </div>
+      <button class="lib-del">delete</button>
+    `;
+    div.querySelector('.lib-del').onclick = () => {
+      presets = presets.filter(x=>x.id!==p.id);
+      savePresets(presets);
+      renderPresetSelect();
+      renderPresetList();
+    };
+    list.appendChild(div);
+  });
+}
+
+renderPresetSelect();
 
 /* ---------- AI endpoint config ---------- */
 
@@ -855,9 +969,10 @@ function generateLocalScript({brand, message, persona, ctaStyle, ctaDetail, plat
   const caption = `Genuinely did not expect ${shortBrand} to be the thing that worked. ${cap(firstPoint)}.${ctaDetail ? ' ' + ctaDetail : ''}`;
 
   const brandTag = '#' + brand.split(/[\s—-]+/)[0].replace(/[^\w]/g,'').toLowerCase();
-  const platformTag = platform === 'TikTok' ? '#tiktokmademebuyit'
+  const platformTag = platform === 'Stories' ? '#instagramstories'
+                    : platform === 'TikTok' ? '#tiktokmademebuyit'
                     : platform === 'Instagram Reels' ? '#reels'
-                    : platform === 'YouTube Shorts' ? '#shorts' : '#twitch';
+                    : platform === 'YouTube Shorts' ? '#shorts' : '#contentcreator';
   const hashtags = [brandTag, platformTag, '#honestreview', '#ad', '#creatorpartnership'];
 
   return { beats, caption, hashtags };
@@ -915,6 +1030,43 @@ genBtn.onclick = async () => {
 
     renderBatchList();
     if(batchResults.length){ selectBatchItem(0); }
+    genBtn.disabled = false;
+    updateGenerateLabel();
+    return;
+  }
+
+  // preset mode
+  if(mode === 'preset'){
+    const sel = document.getElementById('presetSelect');
+    const preset = presets.find(x=>x.id===sel.value);
+    if(!preset){
+      errorMsg.style.display='block';
+      errorMsg.textContent = 'Choose a creator preset first (or add one under Manage presets).';
+      return;
+    }
+    errorMsg.style.display='none';
+    document.getElementById('batchResultsBlock').style.display = 'none';
+
+    const params = {brand, message, persona: preset.style, ctaStyle, ctaDetail, platform, length};
+    genBtn.disabled = true;
+    genBtn.innerHTML = 'Drafting<span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span>';
+
+    let draft, source;
+    try{
+      draft = await generateWithAI(params);
+      source = 'ai';
+    }catch(err){
+      console.warn('AI generation unavailable, using offline draft:', err.message);
+      draft = generateLocalScript(params);
+      source = 'offline';
+      if(getEndpoint()){
+        errorMsg.style.display='block';
+        errorMsg.textContent = `AI call failed (${err.message}) — showing an offline draft instead.`;
+      }
+    }
+
+    currentScript = { brand, platform, length, persona: preset.style, message, ...draft, createdAt: Date.now(), source };
+    renderScript(currentScript);
     genBtn.disabled = false;
     updateGenerateLabel();
     return;
