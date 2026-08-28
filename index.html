@@ -19,6 +19,8 @@
     --coral-dim:#7A2436;
     --teal:#2DD4BF;
     --teal-dim:#0F3B36;
+    --warn:#FFB020;
+    --warn-dim:#4A3410;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{
@@ -148,8 +150,13 @@
   .error{
     margin-top:12px;
     font-size:12.5px;
-    color:var(--coral);
+    color:var(--warn);
     font-family:'IBM Plex Mono',monospace;
+    background:var(--warn-dim);
+    border-left:3px solid var(--warn);
+    border-radius:6px;
+    padding:9px 12px;
+    line-height:1.4;
   }
 
   /* preview column */
