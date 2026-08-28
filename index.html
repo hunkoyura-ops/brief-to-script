@@ -321,10 +321,63 @@
   }
   .batch-item-label{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .batch-item-src{font-size:10px; flex:0 0 auto;}
+
+  /* settings */
+  .topbar{display:flex; justify-content:flex-end; margin-bottom:12px;}
+  .settings-btn{
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    border-radius:8px;
+    padding:7px 12px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    cursor:pointer;
+    display:flex; align-items:center; gap:7px;
+    transition:border-color .15s, color .15s;
+  }
+  .settings-btn:hover{border-color:var(--teal); color:var(--text);}
+  .settings-dot{
+    width:7px; height:7px; border-radius:50%;
+    background:var(--text-dim); display:inline-block;
+    transition:background .2s;
+  }
+  .settings-dot.connected{background:var(--teal);}
+  .settings-panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:18px;
+    margin-bottom:20px;
+    max-width:420px;
+    margin-left:auto;
+  }
+  .settings-panel label{margin-top:0;}
+  .settings-status{
+    margin-top:10px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--text-dim);
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
+
+  <div class="topbar">
+    <button class="settings-btn" id="settingsBtn" title="AI endpoint settings">
+      <span class="settings-dot" id="settingsDot"></span> AI settings
+    </button>
+  </div>
+
+  <div class="settings-panel" id="settingsPanel" style="display:none;">
+    <label>AI endpoint</label>
+    <div class="row2">
+      <input type="text" id="apiEndpoint" placeholder="https://your-worker.workers.dev">
+      <button class="btn-ghost" id="saveEndpoint" style="width:100%;">Save</button>
+    </div>
+    <div class="settings-status" id="modeBadge"></div>
+  </div>
 
   <div class="eyebrow">INFLUENCE & CONTENT OPS</div>
   <h1>Brief <span>→</span> Script</h1>
@@ -338,12 +391,6 @@
     <!-- LEFT: FORM -->
     <div class="panel">
       <div class="panel-title">Campaign Brief</div>
-
-      <label>AI endpoint <span id="modeBadge" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-dim);"></span></label>
-      <div class="row2">
-        <input type="text" id="apiEndpoint" placeholder="https://your-worker.workers.dev">
-        <button class="btn-ghost" id="saveEndpoint" style="width:100%;">Save</button>
-      </div>
 
       <label>Brand / product</label>
       <input type="text" id="brand" placeholder="e.g. Nordic Sleep — melatonin gummies">
@@ -519,12 +566,19 @@ const storage = {
 const endpointInput = document.getElementById('apiEndpoint');
 const modeBadge = document.getElementById('modeBadge');
 const sourceBadge = document.getElementById('sourceBadge');
+const settingsDot = document.getElementById('settingsDot');
+const settingsPanel = document.getElementById('settingsPanel');
+
+document.getElementById('settingsBtn').onclick = () => {
+  settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'block' : 'none';
+};
 
 function getEndpoint(){ return localStorage.getItem('ai_endpoint') || ''; }
 function refreshModeBadge(){
   const ep = getEndpoint();
-  modeBadge.textContent = ep ? '● connected' : '○ offline mode';
+  modeBadge.textContent = ep ? '● connected' : '○ offline mode — click AI settings to connect';
   modeBadge.style.color = ep ? 'var(--teal)' : 'var(--text-dim)';
+  settingsDot.classList.toggle('connected', !!ep);
 }
 endpointInput.value = getEndpoint();
 refreshModeBadge();
