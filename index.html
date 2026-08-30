@@ -549,18 +549,29 @@ document.querySelectorAll('#modePills .pill').forEach(p=>{
     document.getElementById('singlePersonaBlock').style.display = mode==='single' ? 'block' : 'none';
     document.getElementById('batchPersonaBlock').style.display = mode==='batch' ? 'block' : 'none';
     document.getElementById('presetBlock').style.display = mode==='preset' ? 'block' : 'none';
+    if(mode !== 'batch'){
+      document.getElementById('batchResultsBlock').style.display = 'none';
+    }
     updateGenerateLabel();
   };
 });
 
-function getBatchPersonas(){
+function getBatchPersonasRaw(){
   return document.getElementById('batchPersonas').value
-    .split('\n').map(s=>s.trim()).filter(Boolean).slice(0,8);
+    .split('\n').map(s=>s.trim()).filter(Boolean);
+}
+
+function getBatchPersonas(){
+  return getBatchPersonasRaw().slice(0,8);
 }
 
 document.getElementById('batchPersonas').addEventListener('input', () => {
-  const n = getBatchPersonas().length;
-  document.getElementById('batchCount').textContent = n ? `(${n} creator${n>1?'s':''})` : '';
+  const all = getBatchPersonasRaw();
+  const n = all.length;
+  const capped = Math.min(n, 8);
+  document.getElementById('batchCount').textContent = n
+    ? (n > 8 ? `(${capped} of ${n} — max 8)` : `(${n} creator${n>1?'s':''})`)
+    : '';
   updateGenerateLabel();
 });
 
@@ -999,7 +1010,8 @@ genBtn.onclick = async () => {
   }
 
   if(mode === 'batch'){
-    const personas = getBatchPersonas();
+    const allPersonas = getBatchPersonasRaw();
+    const personas = allPersonas.slice(0,8);
     if(personas.length === 0){
       errorMsg.style.display='block';
       errorMsg.textContent = 'Add at least one creator persona (one per line).';
@@ -1009,6 +1021,9 @@ genBtn.onclick = async () => {
     genBtn.disabled = true;
     batchResults = [];
     selectedBatchIdx = -1;
+
+    let offlineCount = 0;
+    let lastErrorDetail = '';
 
     for(let i = 0; i < personas.length; i++){
       genBtn.textContent = `Drafting ${i+1}/${personas.length}...`;
@@ -1021,6 +1036,8 @@ genBtn.onclick = async () => {
         console.warn(`Batch item ${i+1} AI failed, using offline draft:`, err.message);
         draft = generateLocalScript(params);
         source = 'offline';
+        offlineCount++;
+        lastErrorDetail = err.message;
       }
       batchResults.push({
         brand, platform, length, persona: personas[i], message, ...draft,
@@ -1032,6 +1049,18 @@ genBtn.onclick = async () => {
     if(batchResults.length){ selectBatchItem(0); }
     genBtn.disabled = false;
     updateGenerateLabel();
+
+    const notices = [];
+    if(allPersonas.length > 8){
+      notices.push(`Only the first 8 of ${allPersonas.length} creators were generated.`);
+    }
+    if(offlineCount > 0){
+      notices.push(`${offlineCount} of ${personas.length} script${personas.length>1?'s':''} used an offline draft (AI call failed: ${lastErrorDetail}).`);
+    }
+    if(notices.length){
+      errorMsg.style.display = 'block';
+      errorMsg.textContent = notices.join(' ');
+    }
     return;
   }
 
