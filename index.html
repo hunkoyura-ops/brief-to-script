@@ -228,9 +228,15 @@
   .timeline{flex:1; min-width:0;}
   .beat{
     display:flex; gap:14px;
-    padding:14px 0;
+    padding:14px 0 14px 11px;
     border-bottom:1px solid var(--line);
+    border-left:3px solid transparent;
     cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .beat.selected{
+    border-left-color:var(--teal);
+    background:rgba(45,212,191,.05);
   }
   .beat:last-child{border-bottom:none;}
   .beat-time{
@@ -449,6 +455,7 @@
           <label>Style / persona</label>
           <textarea id="presetStyle" placeholder="e.g. Deadpan humor, slow pacing, films outdoors, hates hard-sell CTAs"></textarea>
           <button class="btn-ghost" id="addPresetBtn" style="margin-top:10px;width:100%;">Add preset</button>
+          <button class="btn-ghost" id="cancelEditBtn" style="display:none;margin-top:8px;width:100%;">Cancel edit</button>
           <div id="presetList" style="margin-top:14px;"></div>
         </div>
       </div>
@@ -585,6 +592,23 @@ function updateGenerateLabel(){
   }
 }
 
+/* ---------- CTA detail placeholder ---------- */
+
+const CTA_DETAIL_PLACEHOLDERS = {
+  'Soft / native mention': 'optional — e.g. product name to mention',
+  'Promo code push': 'e.g. code YURII20',
+  'Link-in-bio': 'optional — e.g. what the link leads to',
+  'App install': 'optional — e.g. app name'
+};
+
+const ctaSelect = document.getElementById('cta');
+const ctaDetailInput = document.getElementById('ctaDetail');
+function updateCtaPlaceholder(){
+  ctaDetailInput.placeholder = CTA_DETAIL_PLACEHOLDERS[ctaSelect.value] || '';
+}
+ctaSelect.addEventListener('change', updateCtaPlaceholder);
+updateCtaPlaceholder();
+
 /* ---------- local storage wrapper (standalone deployment — no window.storage here) ---------- */
 
 const storage = {
@@ -652,14 +676,42 @@ document.getElementById('managePresetsBtn').onclick = () => {
   if(panel.style.display === 'block') renderPresetList();
 };
 
+let editingPresetId = null;
+
+function startEditPreset(p){
+  editingPresetId = p.id;
+  document.getElementById('presetName').value = p.name;
+  document.getElementById('presetStyle').value = p.style;
+  document.getElementById('addPresetBtn').textContent = 'Save changes';
+  document.getElementById('cancelEditBtn').style.display = 'block';
+  document.getElementById('presetManage').style.display = 'block';
+}
+
+function cancelEditPreset(){
+  editingPresetId = null;
+  document.getElementById('presetName').value = '';
+  document.getElementById('presetStyle').value = '';
+  document.getElementById('addPresetBtn').textContent = 'Add preset';
+  document.getElementById('cancelEditBtn').style.display = 'none';
+}
+
+document.getElementById('cancelEditBtn').onclick = cancelEditPreset;
+
 document.getElementById('addPresetBtn').onclick = () => {
   const name = document.getElementById('presetName').value.trim();
   const style = document.getElementById('presetStyle').value.trim();
   if(!name || !style) return;
-  presets.push({id:'p'+Date.now(), name, style});
+
+  if(editingPresetId){
+    const p = presets.find(x=>x.id===editingPresetId);
+    if(p){ p.name = name; p.style = style; }
+    cancelEditPreset();
+  }else{
+    presets.push({id:'p'+Date.now(), name, style});
+    document.getElementById('presetName').value = '';
+    document.getElementById('presetStyle').value = '';
+  }
   savePresets(presets);
-  document.getElementById('presetName').value = '';
-  document.getElementById('presetStyle').value = '';
   renderPresetSelect();
   renderPresetList();
 };
@@ -681,9 +733,12 @@ function renderPresetList(){
       </div>
       <button class="lib-del">delete</button>
     `;
-    div.querySelector('.lib-del').onclick = () => {
+    div.querySelector('div').onclick = () => startEditPreset(p);
+    div.querySelector('.lib-del').onclick = (e) => {
+      e.stopPropagation();
       presets = presets.filter(x=>x.id!==p.id);
       savePresets(presets);
+      if(editingPresetId === p.id) cancelEditPreset();
       renderPresetSelect();
       renderPresetList();
     };
@@ -1201,7 +1256,7 @@ function renderScript(script){
   timeline.innerHTML = '';
   script.beats.forEach((b, i) => {
     const div = document.createElement('div');
-    div.className = 'beat';
+    div.className = 'beat' + (i===0 ? ' selected' : '');
     div.innerHTML = `
       <div class="beat-time">${b.time}</div>
       <div class="beat-body">
@@ -1210,7 +1265,11 @@ function renderScript(script){
         <div class="beat-onscreen">On-screen: "${escapeHtml(b.onScreen)}"</div>
       </div>
     `;
-    div.onclick = () => previewBeat(b);
+    div.onclick = () => {
+      timeline.querySelectorAll('.beat').forEach(el => el.classList.remove('selected'));
+      div.classList.add('selected');
+      previewBeat(b);
+    };
     timeline.appendChild(div);
     if(i===0) previewBeat(b);
   });
