@@ -372,6 +372,24 @@
     font-size:11px;
     color:var(--text-dim);
   }
+
+  /* footer */
+  .site-footer{
+    margin-top:48px;
+    padding-top:20px;
+    border-top:1px solid var(--line);
+    text-align:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    color:var(--text-dim);
+  }
+  .site-footer a{
+    color:var(--text-dim);
+    text-decoration:none;
+    transition:color .15s;
+  }
+  .site-footer a:hover{color:var(--teal);}
+  .footer-sep{margin:0 8px; opacity:.5;}
 </style>
 </head>
 <body>
@@ -525,6 +543,14 @@
     </div>
 
   </div>
+
+  <footer class="site-footer">
+    <span>© 2026 Yurii Hunko</span>
+    <span class="footer-sep">·</span>
+    <a href="https://linkedin.com/in/yurii-hunko" target="_blank" rel="noopener">LinkedIn</a>
+    <span class="footer-sep">·</span>
+    <a href="https://github.com/hunkoyura-ops" target="_blank" rel="noopener">GitHub</a>
+  </footer>
 </div>
 
 <script>
