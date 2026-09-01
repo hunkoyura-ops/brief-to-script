@@ -441,6 +441,7 @@
         <div class="pill" data-val="Instagram Reels" tabindex="0" role="button" aria-pressed="false">Reels</div>
         <div class="pill" data-val="YouTube Shorts" tabindex="0" role="button" aria-pressed="false">Shorts</div>
       </div>
+      <div id="platformHint" style="margin-top:8px;font-size:11.5px;color:var(--text-dim);font-style:italic;line-height:1.4;"></div>
 
       <label>Video length</label>
       <div class="pillgroup" id="lenPills" role="group" aria-label="Video length">
@@ -593,6 +594,7 @@ document.querySelectorAll('#platformPills .pill').forEach(p=>{
     p.classList.add('active');
     p.setAttribute('aria-pressed','true');
     platform = p.dataset.val;
+    document.getElementById('platformHint').textContent = getPlatformProfile(platform).hint;
   };
   enableKeyboardActivation(p);
 });
@@ -865,9 +867,11 @@ async function generateWithAI({brand, message, persona, ctaStyle, ctaDetail, pla
   const endpoint = getEndpoint();
   if(!endpoint) throw new Error('no endpoint configured');
 
+  const profile = getPlatformProfile(platform);
   const prompt = `You are a short-form video creative brief specialist writing a script for an influencer/creator integration.
 
 Platform: ${platform}
+Platform-native conventions: ${profile.hint}
 Video length: ${length} seconds
 Brand/product: ${brand}
 Key message/offer: ${message}
@@ -988,6 +992,81 @@ const CTA_OVERLAY = {
   'App install': 'DOWNLOAD NOW'
 };
 
+/* ---------- platform-native profiles ---------- */
+
+const PLATFORM_PROFILES = {
+  'Stories': {
+    hint: 'Sticker-driven and ephemeral — one native action (swipe/tap/vote), 15s is the standard length.',
+    ctaVerb: {
+      'Soft / native mention': d => `Swipe up if you're curious${d ? ' — ' + d : ''}.`,
+      'Promo code push': d => `Swipe up and use ${d || 'my code'} — it's right there.`,
+      'Link-in-bio': d => `Tap the link sticker above${d ? ' — ' + d : ''}.`,
+      'App install': d => `Swipe up to download${d ? ' — ' + d : ''}.`
+    },
+    ctaOverlay: {
+      'Soft / native mention': '👉 SWIPE UP',
+      'Promo code push': d => d ? `👉 ${d.toUpperCase()}` : '👉 SWIPE UP',
+      'Link-in-bio': '👉 TAP LINK STICKER',
+      'App install': '👉 SWIPE TO DOWNLOAD'
+    },
+    hashtags: ['#instagramstories']
+  },
+  'TikTok': {
+    hint: 'Hook lands in the first second, no polish, comment/duet-driven CTA, trend-aware.',
+    ctaVerb: {
+      'Soft / native mention': d => `Check my bio${d ? ' — ' + d : ''}, no pressure.`,
+      'Promo code push': d => `Comment "${d || 'CODE'}" and I'll send you the link.`,
+      'Link-in-bio': d => `Link's in my bio${d ? ' — ' + d : ''}, obviously.`,
+      'App install': d => `Go download it${d ? ' — ' + d : ''}, it's free.`
+    },
+    ctaOverlay: {
+      'Soft / native mention': 'CHECK BIO',
+      'Promo code push': d => d ? `COMMENT "${d.toUpperCase()}"` : 'COMMENT BELOW',
+      'Link-in-bio': 'LINK IN BIO',
+      'App install': 'DOWNLOAD NOW'
+    },
+    hashtags: ['#tiktokmademebuyit', '#fyp']
+  },
+  'Instagram Reels': {
+    hint: 'A touch more polished than TikTok, save/share-driven CTA, aesthetic-aware.',
+    ctaVerb: {
+      'Soft / native mention': d => `Save this for later${d ? ' — ' + d : ''}.`,
+      'Promo code push': d => `Use ${d || 'my code'} — saved it to my highlights too.`,
+      'Link-in-bio': d => `Link in bio${d ? ' — ' + d : ''}, also in my highlights.`,
+      'App install': d => `Download it, link in bio${d ? ' — ' + d : ''}.`
+    },
+    ctaOverlay: {
+      'Soft / native mention': 'SAVE THIS',
+      'Promo code push': d => d ? d.toUpperCase() : 'USE MY CODE',
+      'Link-in-bio': 'LINK IN BIO',
+      'App install': 'DOWNLOAD NOW'
+    },
+    hashtags: ['#reels', '#instagramreels']
+  },
+  'YouTube Shorts': {
+    hint: 'A more informative tone works well, subscribe/comment-driven CTA, can reference a longer video.',
+    ctaVerb: {
+      'Soft / native mention': d => `Check the description${d ? ' — ' + d : ''} if you want more.`,
+      'Promo code push': d => `Code's in the description${d ? ': ' + d : ''}.`,
+      'Link-in-bio': d => `Link's in the description${d ? ' — ' + d : ''}.`,
+      'App install': d => `Download it — link in the description${d ? ' — ' + d : ''}.`
+    },
+    ctaOverlay: {
+      'Soft / native mention': 'MORE IN DESCRIPTION',
+      'Promo code push': 'CODE IN DESCRIPTION',
+      'Link-in-bio': 'LINK IN DESCRIPTION',
+      'App install': 'DOWNLOAD NOW'
+    },
+    hashtags: ['#shorts']
+  }
+};
+
+function getPlatformProfile(platform){
+  return PLATFORM_PROFILES[platform] || PLATFORM_PROFILES['Stories'];
+}
+
+document.getElementById('platformHint').textContent = getPlatformProfile(platform).hint;
+
 function cap(str){
   if(!str) return str;
   return str.charAt(0).toUpperCase() + str.slice(1);
@@ -1090,9 +1169,14 @@ function generateLocalScript({brand, message, persona, ctaStyle, ctaDetail, plat
 
   // cta beat
   const last = timings[timings.length-1];
+  const profile = getPlatformProfile(platform);
+  const platformCtaVerb = profile.ctaVerb[ctaStyle];
   const ctaVariants = CTA_LINES[ctaStyle] || CTA_LINES['Soft / native mention'];
-  const ctaLine = ctaVariants[Math.floor(Math.random()*ctaVariants.length)](ctaDetail);
-  const overlayRaw = CTA_OVERLAY[ctaStyle];
+  const ctaLine = platformCtaVerb
+    ? platformCtaVerb(ctaDetail)
+    : ctaVariants[Math.floor(Math.random()*ctaVariants.length)](ctaDetail);
+  const platformOverlay = profile.ctaOverlay[ctaStyle];
+  const overlayRaw = platformOverlay !== undefined ? platformOverlay : CTA_OVERLAY[ctaStyle];
   beats.push({
     time: `${last[0]}-${last[1]}s`,
     tag: 'CTA',
@@ -1104,11 +1188,8 @@ function generateLocalScript({brand, message, persona, ctaStyle, ctaDetail, plat
   const caption = `Genuinely did not expect ${shortBrand} to be the thing that worked. ${cap(firstPoint)}.${ctaDetail ? ' ' + ctaDetail : ''}`;
 
   const brandTag = '#' + brand.split(/[\s—-]+/)[0].replace(/[^\w]/g,'').toLowerCase();
-  const platformTag = platform === 'Stories' ? '#instagramstories'
-                    : platform === 'TikTok' ? '#tiktokmademebuyit'
-                    : platform === 'Instagram Reels' ? '#reels'
-                    : platform === 'YouTube Shorts' ? '#shorts' : '#contentcreator';
-  const hashtags = [brandTag, platformTag, '#honestreview', '#ad', '#creatorpartnership'];
+  const platformTags = getPlatformProfile(platform).hashtags;
+  const hashtags = [brandTag, ...platformTags, '#honestreview', '#ad'].slice(0,5);
 
   return { beats, caption, hashtags };
 }
