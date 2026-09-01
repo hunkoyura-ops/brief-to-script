@@ -129,6 +129,14 @@
     background:var(--teal-dim);
   }
 
+  .pill:focus-visible,
+  .beat:focus-visible,
+  .lib-item:focus-visible,
+  .batch-item:focus-visible{
+    outline:2px solid var(--teal);
+    outline-offset:2px;
+  }
+
   button.generate{
     margin-top:22px;
     width:100%;
@@ -427,28 +435,28 @@
       <input type="text" id="brand" placeholder="e.g. Nordic Sleep — melatonin gummies">
 
       <label>Platform</label>
-      <div class="pillgroup" id="platformPills">
-        <div class="pill active" data-val="Stories">Stories</div>
-        <div class="pill" data-val="TikTok">TikTok</div>
-        <div class="pill" data-val="Instagram Reels">Reels</div>
-        <div class="pill" data-val="YouTube Shorts">Shorts</div>
+      <div class="pillgroup" id="platformPills" role="group" aria-label="Platform">
+        <div class="pill active" data-val="Stories" tabindex="0" role="button" aria-pressed="true">Stories</div>
+        <div class="pill" data-val="TikTok" tabindex="0" role="button" aria-pressed="false">TikTok</div>
+        <div class="pill" data-val="Instagram Reels" tabindex="0" role="button" aria-pressed="false">Reels</div>
+        <div class="pill" data-val="YouTube Shorts" tabindex="0" role="button" aria-pressed="false">Shorts</div>
       </div>
 
       <label>Video length</label>
-      <div class="pillgroup" id="lenPills">
-        <div class="pill" data-val="15">15s</div>
-        <div class="pill active" data-val="30">30s</div>
-        <div class="pill" data-val="60">60s</div>
+      <div class="pillgroup" id="lenPills" role="group" aria-label="Video length">
+        <div class="pill" data-val="15" tabindex="0" role="button" aria-pressed="false">15s</div>
+        <div class="pill active" data-val="30" tabindex="0" role="button" aria-pressed="true">30s</div>
+        <div class="pill" data-val="60" tabindex="0" role="button" aria-pressed="false">60s</div>
       </div>
 
       <label>Key message / offer</label>
       <textarea id="message" placeholder="e.g. Falls-asleep-faster claim, first order 20% off with code, natural ingredients"></textarea>
 
       <label>Mode</label>
-      <div class="pillgroup" id="modePills">
-        <div class="pill active" data-val="single">Single</div>
-        <div class="pill" data-val="batch">Batch</div>
-        <div class="pill" data-val="preset">Preset</div>
+      <div class="pillgroup" id="modePills" role="group" aria-label="Generation mode">
+        <div class="pill active" data-val="single" tabindex="0" role="button" aria-pressed="true">Single</div>
+        <div class="pill" data-val="batch" tabindex="0" role="button" aria-pressed="false">Batch</div>
+        <div class="pill" data-val="preset" tabindex="0" role="button" aria-pressed="false">Preset</div>
       </div>
 
       <div id="singlePersonaBlock">
@@ -558,26 +566,58 @@ let platform = 'Stories';
 let length = '30';
 let currentScript = null;
 
+/* ---------- accessibility helpers ---------- */
+
+function enableKeyboardActivation(el){
+  el.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' || e.key === ' '){
+      e.preventDefault();
+      el.click();
+    }
+  });
+}
+
+function makeInteractive(el, label){
+  el.setAttribute('tabindex', '0');
+  el.setAttribute('role', 'button');
+  if(label) el.setAttribute('aria-label', label);
+  enableKeyboardActivation(el);
+}
+
 document.querySelectorAll('#platformPills .pill').forEach(p=>{
   p.onclick = ()=>{
-    document.querySelectorAll('#platformPills .pill').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('#platformPills .pill').forEach(x=>{
+      x.classList.remove('active');
+      x.setAttribute('aria-pressed','false');
+    });
     p.classList.add('active');
+    p.setAttribute('aria-pressed','true');
     platform = p.dataset.val;
   };
+  enableKeyboardActivation(p);
 });
 document.querySelectorAll('#lenPills .pill').forEach(p=>{
   p.onclick = ()=>{
-    document.querySelectorAll('#lenPills .pill').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('#lenPills .pill').forEach(x=>{
+      x.classList.remove('active');
+      x.setAttribute('aria-pressed','false');
+    });
     p.classList.add('active');
+    p.setAttribute('aria-pressed','true');
     length = p.dataset.val;
   };
+  enableKeyboardActivation(p);
 });
 
 let mode = 'single';
 document.querySelectorAll('#modePills .pill').forEach(p=>{
   p.onclick = ()=>{
-    document.querySelectorAll('#modePills .pill').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('#modePills .pill').forEach(x=>{
+      x.classList.remove('active');
+      x.setAttribute('aria-pressed','false');
+    });
     p.classList.add('active');
+    p.setAttribute('aria-pressed','true');
     mode = p.dataset.val;
     document.getElementById('singlePersonaBlock').style.display = mode==='single' ? 'block' : 'none';
     document.getElementById('batchPersonaBlock').style.display = mode==='batch' ? 'block' : 'none';
@@ -587,6 +627,7 @@ document.querySelectorAll('#modePills .pill').forEach(p=>{
     }
     updateGenerateLabel();
   };
+  enableKeyboardActivation(p);
 });
 
 function getBatchPersonasRaw(){
@@ -757,9 +798,11 @@ function renderPresetList(){
         ${escapeHtml(p.name)}
         <small>${escapeHtml(p.style.slice(0,60))}${p.style.length>60?'…':''}</small>
       </div>
-      <button class="lib-del">delete</button>
+      <button class="lib-del" aria-label="Delete preset ${escapeHtml(p.name)}">delete</button>
     `;
-    div.querySelector('div').onclick = () => startEditPreset(p);
+    const editTarget = div.querySelector('div');
+    editTarget.onclick = () => startEditPreset(p);
+    makeInteractive(editTarget, `Edit preset: ${p.name}`);
     div.querySelector('.lib-del').onclick = (e) => {
       e.stopPropagation();
       presets = presets.filter(x=>x.id!==p.id);
@@ -1225,6 +1268,7 @@ function renderBatchList(){
       <span class="batch-item-src">${r.source==='ai' ? '✦' : '○'}</span>
     `;
     div.onclick = () => selectBatchItem(i);
+    makeInteractive(div, `Preview script for ${shortLabel(r.persona)}`);
     list.appendChild(div);
   });
 }
@@ -1296,6 +1340,7 @@ function renderScript(script){
       div.classList.add('selected');
       previewBeat(b);
     };
+    makeInteractive(div, `Preview ${b.tag} beat, ${b.time}`);
     timeline.appendChild(div);
     if(i===0) previewBeat(b);
   });
@@ -1439,9 +1484,11 @@ async function loadLibrary(){
             ${escapeHtml(script.brand)}
             <small>${script.platform} · ${script.length}s · ${new Date(script.createdAt).toLocaleDateString()}</small>
           </div>
-          <button class="lib-del">delete</button>
+          <button class="lib-del" aria-label="Delete ${escapeHtml(script.brand)}">delete</button>
         `;
-        div.querySelector('div').onclick = () => { currentScript = script; renderScript(script); };
+        const loadTarget = div.querySelector('div');
+        loadTarget.onclick = () => { currentScript = script; renderScript(script); };
+        makeInteractive(loadTarget, `Load saved script: ${script.brand}`);
         div.querySelector('.lib-del').onclick = async (e) => {
           e.stopPropagation();
           await storage.delete(key);
