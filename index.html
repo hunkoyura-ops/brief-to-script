@@ -275,13 +275,6 @@
     color:var(--text-dim); margin-bottom:6px;
   }
   .caption-text{font-size:13px; line-height:1.5; color:var(--text);}
-  .hashtags{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
-  .hashtag{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px; color:var(--teal);
-    background:var(--teal-dim);
-    padding:3px 9px; border-radius:12px;
-  }
 
   .actions{display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;}
   .btn-ghost{
@@ -538,10 +531,6 @@
           <div class="meta-label">Caption</div>
           <div class="caption-text" id="captionText"></div>
         </div>
-        <div class="meta-block">
-          <div class="meta-label">Hashtags</div>
-          <div class="hashtags" id="hashtagsBlock"></div>
-        </div>
         <div class="actions">
           <button class="btn-ghost" id="copyBtn">Copy full script</button>
           <button class="btn-ghost" id="saveBtn">Save to library</button>
@@ -771,17 +760,22 @@ document.getElementById('addPresetBtn').onclick = () => {
   const style = document.getElementById('presetStyle').value.trim();
   if(!name || !style) return;
 
+  let targetId;
   if(editingPresetId){
     const p = presets.find(x=>x.id===editingPresetId);
     if(p){ p.name = name; p.style = style; }
+    targetId = editingPresetId;
     cancelEditPreset();
   }else{
-    presets.push({id:'p'+Date.now(), name, style});
+    targetId = 'p'+Date.now();
+    presets.push({id: targetId, name, style});
     document.getElementById('presetName').value = '';
     document.getElementById('presetStyle').value = '';
   }
   savePresets(presets);
   renderPresetSelect();
+  document.getElementById('presetSelect').value = targetId;
+  updatePresetPreview();
   renderPresetList();
 };
 
@@ -880,10 +874,10 @@ CTA style: ${ctaStyle}${ctaDetail ? ' — ' + ctaDetail : ''}
 
 Write a timecoded script broken into beats that fit within ${length} seconds total, starting with a 0-3 second hook, then 1-3 body beats, then a CTA beat at the end. For each beat give: a time range (e.g. "0-3s"), a short tag (HOOK / BODY / PROOF / CTA), the spoken/voiceover line in the creator's voice, and a short on-screen text overlay suggestion (max 6 words).
 
-Also write a short native-sounding caption (1-2 sentences, platform-appropriate) and 5 relevant hashtags.
+Also write a short native-sounding caption (1-2 sentences, platform-appropriate). Prioritize a natural, specific voiceover over generic ad copy — avoid corporate phrasing, keep sentences short enough to say in one breath, and make sure each beat sounds like something a real person would actually say on camera, not a script read aloud.
 
 Respond with ONLY valid JSON, no markdown fences, no preamble, matching exactly this schema:
-{"beats":[{"time":"0-3s","tag":"HOOK","line":"...","onScreen":"..."}],"caption":"...","hashtags":["#tag1","#tag2","#tag3","#tag4","#tag5"]}`;
+{"beats":[{"time":"0-3s","tag":"HOOK","line":"...","onScreen":"..."}],"caption":"..."}`;
 
   const res = await fetch(endpoint, {
     method: 'POST',
@@ -944,22 +938,22 @@ const HOOKS = {
 
 const BODY_TEMPLATES = [
   p => `Here's the actual thing: ${p}.`,
-  p => `Real talk — ${p}, and that's the part that got me.`,
+  p => `Real talk: ${p}.`,
   p => `${cap(p)}. That's genuinely it.`,
-  p => `Nobody tells you this, but ${p}.`,
-  p => `The moment it clicked for me was realizing ${p}.`,
+  p => `Nobody tells you this: ${p}.`,
+  p => `The moment it clicked for me: ${p}.`,
   p => `Quick gut-check: ${p}.`,
-  p => `This is the part I wasn't expecting — ${p}.`,
+  p => `Here's the part I wasn't expecting: ${p}.`,
   p => `If you only take one thing from this: ${p}.`
 ];
 
 const PROOF_TEMPLATES = [
   p => `What actually sold me: ${p}.`,
-  p => `Not a sponsored talking point — ${p} is just true.`,
-  p => `I tested this myself before saying anything: ${p}.`,
+  p => `Not a sponsored talking point: ${p}.`,
+  p => `I checked before saying anything: ${p}.`,
   p => `Here's proof, not just a claim: ${p}.`,
   p => `This is where it stopped feeling like an ad: ${p}.`,
-  p => `I looked into it, and ${p}.`
+  p => `Here's what I found: ${p}.`
 ];
 
 const CTA_LINES = {
@@ -1009,7 +1003,6 @@ const PLATFORM_PROFILES = {
       'Link-in-bio': '👉 TAP LINK STICKER',
       'App install': '👉 SWIPE TO DOWNLOAD'
     },
-    hashtags: ['#instagramstories']
   },
   'TikTok': {
     hint: 'Hook lands in the first second, no polish, comment/duet-driven CTA, trend-aware.',
@@ -1025,7 +1018,6 @@ const PLATFORM_PROFILES = {
       'Link-in-bio': 'LINK IN BIO',
       'App install': 'DOWNLOAD NOW'
     },
-    hashtags: ['#tiktokmademebuyit', '#fyp']
   },
   'Instagram Reels': {
     hint: 'A touch more polished than TikTok, save/share-driven CTA, aesthetic-aware.',
@@ -1041,7 +1033,6 @@ const PLATFORM_PROFILES = {
       'Link-in-bio': 'LINK IN BIO',
       'App install': 'DOWNLOAD NOW'
     },
-    hashtags: ['#reels', '#instagramreels']
   },
   'YouTube Shorts': {
     hint: 'A more informative tone works well, subscribe/comment-driven CTA, can reference a longer video.',
@@ -1057,7 +1048,6 @@ const PLATFORM_PROFILES = {
       'Link-in-bio': 'LINK IN DESCRIPTION',
       'App install': 'DOWNLOAD NOW'
     },
-    hashtags: ['#shorts']
   }
 };
 
@@ -1069,6 +1059,10 @@ document.getElementById('platformHint').textContent = getPlatformProfile(platfor
 
 function cap(str){
   if(!str) return str;
+  // preserve stylized brand casing (iPhone, eBay, iOS — lowercase letter followed by uppercase)
+  if(str.length > 1 && /[a-z]/.test(str[0]) && /[A-Z]/.test(str[1])){
+    return str;
+  }
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
@@ -1137,7 +1131,7 @@ function generateLocalScript({brand, message, persona, ctaStyle, ctaDetail, plat
 
     let point, line;
     if(hasRealPoint){
-      point = rawPoint.toLowerCase();
+      point = rawPoint;
       const pointWithBrand = i === 0 ? `${shortBrand} — ${point}` : point;
       if(isProof){
         let idx; do{ idx = Math.floor(Math.random()*PROOF_TEMPLATES.length); }while(usedProofTemplates.has(idx) && usedProofTemplates.size < PROOF_TEMPLATES.length);
@@ -1184,14 +1178,12 @@ function generateLocalScript({brand, message, persona, ctaStyle, ctaDetail, plat
     onScreen: typeof overlayRaw === 'function' ? overlayRaw(ctaDetail) : overlayRaw
   });
 
-  const firstPoint = (points[0] || message).toLowerCase();
+  const firstPoint = points[0] || message;
   const caption = `Genuinely did not expect ${shortBrand} to be the thing that worked. ${cap(firstPoint)}.${ctaDetail ? ' ' + ctaDetail : ''}`;
 
-  const brandTag = '#' + brand.split(/[\s—-]+/)[0].replace(/[^\w]/g,'').toLowerCase();
-  const platformTags = getPlatformProfile(platform).hashtags;
-  const hashtags = [brandTag, ...platformTags, '#honestreview', '#ad'].slice(0,5);
+  const droppedPoints = Math.max(0, points.length - bodySlots);
 
-  return { beats, caption, hashtags };
+  return { beats, caption, droppedPoints };
 }
 
 let batchResults = [];
@@ -1229,6 +1221,7 @@ genBtn.onclick = async () => {
 
     let offlineCount = 0;
     let lastErrorDetail = '';
+    let totalDroppedPoints = 0;
 
     for(let i = 0; i < personas.length; i++){
       genBtn.textContent = `Drafting ${i+1}/${personas.length}...`;
@@ -1243,6 +1236,7 @@ genBtn.onclick = async () => {
         source = 'offline';
         offlineCount++;
         lastErrorDetail = err.message;
+        totalDroppedPoints += draft.droppedPoints || 0;
       }
       batchResults.push({
         brand, platform, length, persona: personas[i], message, ...draft,
@@ -1261,6 +1255,9 @@ genBtn.onclick = async () => {
     }
     if(offlineCount > 0){
       notices.push(`${offlineCount} of ${personas.length} script${personas.length>1?'s':''} used an offline draft (AI call failed: ${lastErrorDetail}).`);
+    }
+    if(totalDroppedPoints > 0){
+      notices.push(`${totalDroppedPoints} message point${totalDroppedPoints>1?'s':''} didn't fit in a ${length}s script and were dropped.`);
     }
     if(notices.length){
       errorMsg.style.display = 'block';
@@ -1286,6 +1283,7 @@ genBtn.onclick = async () => {
     genBtn.innerHTML = 'Drafting<span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span>';
 
     let draft, source;
+    const notices = [];
     try{
       draft = await generateWithAI(params);
       source = 'ai';
@@ -1294,9 +1292,15 @@ genBtn.onclick = async () => {
       draft = generateLocalScript(params);
       source = 'offline';
       if(getEndpoint()){
-        errorMsg.style.display='block';
-        errorMsg.textContent = `AI call failed (${err.message}) — showing an offline draft instead.`;
+        notices.push(`AI call failed (${err.message}) — showing an offline draft instead.`);
       }
+    }
+    if(draft.droppedPoints > 0){
+      notices.push(`${draft.droppedPoints} message point${draft.droppedPoints>1?'s':''} didn't fit in a ${length}s script and were dropped.`);
+    }
+    if(notices.length){
+      errorMsg.style.display='block';
+      errorMsg.textContent = notices.join(' ');
     }
 
     currentScript = { brand, platform, length, persona: preset.style, message, ...draft, createdAt: Date.now(), source };
@@ -1316,6 +1320,7 @@ genBtn.onclick = async () => {
   genBtn.innerHTML = 'Drafting<span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span>';
 
   let draft, source;
+  const notices = [];
   try{
     draft = await generateWithAI(params);
     source = 'ai';
@@ -1324,9 +1329,15 @@ genBtn.onclick = async () => {
     draft = generateLocalScript(params);
     source = 'offline';
     if(getEndpoint()){
-      errorMsg.style.display='block';
-      errorMsg.textContent = `AI call failed (${err.message}) — showing an offline draft instead.`;
+      notices.push(`AI call failed (${err.message}) — showing an offline draft instead.`);
     }
+  }
+  if(draft.droppedPoints > 0){
+    notices.push(`${draft.droppedPoints} message point${draft.droppedPoints>1?'s':''} didn't fit in a ${length}s script and were dropped.`);
+  }
+  if(notices.length){
+    errorMsg.style.display='block';
+    errorMsg.textContent = notices.join(' ');
   }
 
   currentScript = { brand, platform, length, persona, message, ...draft, createdAt: Date.now(), source };
@@ -1427,13 +1438,6 @@ function renderScript(script){
   });
 
   document.getElementById('captionText').textContent = script.caption;
-  const hb = document.getElementById('hashtagsBlock');
-  hb.innerHTML = '';
-  (script.hashtags||[]).forEach(h=>{
-    const s = document.createElement('span');
-    s.className='hashtag'; s.textContent=h;
-    hb.appendChild(s);
-  });
 }
 
 function parseTimeRange(str){
@@ -1462,7 +1466,7 @@ function escapeHtml(str){
 document.getElementById('copyBtn').onclick = () => {
   if(!currentScript) return;
   const lines = currentScript.beats.map(b => `[${b.time}] ${b.tag}: ${b.line}  (on-screen: ${b.onScreen})`).join('\n');
-  const full = `${currentScript.brand} — ${currentScript.platform}, ${currentScript.length}s\n\n${lines}\n\nCaption: ${currentScript.caption}\n${(currentScript.hashtags||[]).join(' ')}`;
+  const full = `${currentScript.brand} — ${currentScript.platform}, ${currentScript.length}s\n\n${lines}\n\nCaption: ${currentScript.caption}`;
   navigator.clipboard.writeText(full);
   const btn = document.getElementById('copyBtn');
   const original = btn.textContent;
@@ -1489,7 +1493,7 @@ document.getElementById('saveBtn').onclick = async () => {
 
 function scriptToPlainText(s){
   const lines = s.beats.map(b => `[${b.time}]  ${b.tag}\n${b.line}\nOn-screen: "${b.onScreen}"`).join('\n\n');
-  return `${s.brand}\n${s.platform} · ${s.length}s\nCreator tone: ${s.persona || '—'}\n\nSCRIPT\n\n${lines}\n\nCAPTION\n${s.caption}\n\nHASHTAGS\n${(s.hashtags||[]).join(' ')}`;
+  return `${s.brand}\n${s.platform} · ${s.length}s\nCreator tone: ${s.persona || '—'}\n\nSCRIPT\n\n${lines}\n\nCAPTION\n${s.caption}`;
 }
 
 function scriptToDocHtml(s){
@@ -1509,8 +1513,6 @@ function scriptToDocHtml(s){
   <table style="border-collapse:collapse;width:100%;">${rows}</table>
   <h2 style="font-size:14pt;">Caption</h2>
   <p>${escapeHtml(s.caption)}</p>
-  <h2 style="font-size:14pt;">Hashtags</h2>
-  <p>${escapeHtml((s.hashtags||[]).join(' '))}</p>
 </body></html>`;
 }
 
