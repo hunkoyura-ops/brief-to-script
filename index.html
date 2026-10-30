@@ -491,6 +491,10 @@
         <input type="text" id="ctaDetail" placeholder="e.g. code YURII20">
       </div>
 
+      <div style="margin-top:14px;font-size:11px;color:var(--text-dim);font-style:italic;line-height:1.4;">
+        📋 Don't forget disclosure — Instagram's "Paid Partnership" label, TikTok's "Branded Content" toggle, or a clear #ad. Legally required, not added to the script automatically.
+      </div>
+
       <button class="generate" id="genBtn">Generate script</button>
       <div class="error" id="errorMsg" style="display:none;"></div>
 
@@ -865,7 +869,8 @@ async function generateWithAI({brand, message, persona, ctaStyle, ctaDetail, pla
   const prompt = `You are a short-form video creative brief specialist writing a script for an influencer/creator integration.
 
 Platform: ${platform}
-Platform-native conventions: ${profile.hint}
+Platform-native conventions: ${profile.hint}${profile.avoid ? `
+Important — hard constraint: ${profile.avoid}` : ''}
 Video length: ${length} seconds
 Brand/product: ${brand}
 Key message/offer: ${message}
@@ -874,7 +879,11 @@ CTA style: ${ctaStyle}${ctaDetail ? ' — ' + ctaDetail : ''}
 
 Write a timecoded script broken into beats that fit within ${length} seconds total, starting with a 0-3 second hook, then 1-3 body beats, then a CTA beat at the end. For each beat give: a time range (e.g. "0-3s"), a short tag (HOOK / BODY / PROOF / CTA), the spoken/voiceover line in the creator's voice, and a short on-screen text overlay suggestion (max 6 words).
 
-Also write a short native-sounding caption (1-2 sentences, platform-appropriate). Prioritize a natural, specific voiceover over generic ad copy — avoid corporate phrasing, keep sentences short enough to say in one breath, and make sure each beat sounds like something a real person would actually say on camera, not a script read aloud.
+Speaking pace — hard constraint: a person says about 2.5 words per second on camera. For every beat, the spoken line must be at most 2.5 × (beat duration in seconds) words. Example: a 4-second beat gets at most 10 words, a 9-second beat at most 22. Shorter is fine, longer is not.
+
+Facts — hard constraint: use only facts that appear in the brief above. Do not invent product features, materials, sizes, colors, prices, discounts, delivery times, or specific personal experiences (where the creator wore it, how long she has owned it, what she compared it to). If the brief is thin, keep the lines about the creator's reaction and feeling, not about product specs.
+
+Also write a short native-sounding caption (1-2 sentences, platform-appropriate) that follows the same facts rule. Prioritize a natural, specific voiceover over generic ad copy — avoid corporate phrasing, keep sentences short enough to say in one breath, and make sure each beat sounds like something a real person would actually say on camera, not a script read aloud.
 
 Respond with ONLY valid JSON, no markdown fences, no preamble, matching exactly this schema:
 {"beats":[{"time":"0-3s","tag":"HOOK","line":"...","onScreen":"..."}],"caption":"..."}`;
@@ -990,18 +999,19 @@ const CTA_OVERLAY = {
 
 const PLATFORM_PROFILES = {
   'Stories': {
-    hint: 'Sticker-driven and ephemeral — one native action (swipe/tap/vote), 15s is the standard length.',
+    hint: 'Sticker-driven and ephemeral — one native action (tap link sticker/vote), 15s is the standard length.',
+    avoid: 'Never write "swipe up" — Instagram removed that gesture in 2021. The current native action is tapping the link sticker.',
     ctaVerb: {
-      'Soft / native mention': d => `Swipe up if you're curious${d ? ' — ' + d : ''}.`,
-      'Promo code push': d => `Swipe up and use ${d || 'my code'} — it's right there.`,
+      'Soft / native mention': d => `Tap the link sticker if you're curious${d ? ' — ' + d : ''}.`,
+      'Promo code push': d => `Tap the link sticker and use ${d || 'my code'} — it's right there.`,
       'Link-in-bio': d => `Tap the link sticker above${d ? ' — ' + d : ''}.`,
-      'App install': d => `Swipe up to download${d ? ' — ' + d : ''}.`
+      'App install': d => `Tap the link sticker to download${d ? ' — ' + d : ''}.`
     },
     ctaOverlay: {
-      'Soft / native mention': '👉 SWIPE UP',
-      'Promo code push': d => d ? `👉 ${d.toUpperCase()}` : '👉 SWIPE UP',
+      'Soft / native mention': '👉 TAP LINK STICKER',
+      'Promo code push': d => d ? `👉 ${d.toUpperCase()}` : '👉 TAP LINK STICKER',
       'Link-in-bio': '👉 TAP LINK STICKER',
-      'App install': '👉 SWIPE TO DOWNLOAD'
+      'App install': '👉 TAP TO DOWNLOAD'
     },
   },
   'TikTok': {
@@ -1077,7 +1087,7 @@ let lastHookIdx = -1;
 
 function pickHookStyle(persona){
   const p = (persona||'').toLowerCase();
-  if(/demo|show|tutorial|unbox|review/.test(p)) return 'demo';
+  if(/demo|show|tutorial|unbox|review|haul|try-on|try on|outfit|swap/.test(p)) return 'demo';
   if(/sarcas|contrarian|blunt|hot take|opinion|rant/.test(p)) return 'contrarian';
   if(/self-deprecat|confess|storytell|vlog|personal|diary/.test(p)) return 'confession';
   return 'problem';
